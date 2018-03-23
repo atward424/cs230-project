@@ -27,7 +27,7 @@ class PatientDataset(Dataset):
     """
     A standard PyTorch definition of Dataset which defines the functions __len__ and __getitem__.
     """
-    def __init__(self, feature_file, outcome_file):
+    def __init__(self, feature_file, outcome_file, ablation=None):
         """
         Store data
 
@@ -36,6 +36,10 @@ class PatientDataset(Dataset):
             transform: (torchvision.transforms) transformation to apply on image
         """
         self.features = pd.read_csv(feature_file)
+        if ablation is not None:
+            replace = pd.read_csv('data/abl_replace.csv')
+            for ind in ablation:
+                self.features.iloc[:, ind] = replace.iloc[ind, 1]
 
         self.labels = pd.read_csv(outcome_file)['disc.24.hr']
 
@@ -58,7 +62,7 @@ class PatientDataset(Dataset):
         return pat_day, self.labels.iloc[idx].astype(np.float32)
 
 
-def fetch_dataloader(types, data_dir, params):
+def fetch_dataloader(types, data_dir, params, ablation=None):
     """
     Fetches the DataLoader object for each type in types from data_dir.
 
@@ -79,11 +83,11 @@ def fetch_dataloader(types, data_dir, params):
             outcome_file = os.path.join(data_dir, "{}_outcomes.csv".format(split))
             # use the train_transformer if training data, else use eval_transformer without random flip
             if split == 'train':
-                dl = DataLoader(PatientDataset(feature_file, outcome_file), batch_size=params.batch_size, shuffle=True,
+                dl = DataLoader(PatientDataset(feature_file, outcome_file, ablation), batch_size=params.batch_size, shuffle=True,
                                         num_workers=params.num_workers,
                                         pin_memory=params.cuda)
             else:
-                dl = DataLoader(PatientDataset(feature_file, outcome_file), batch_size=params.batch_size, shuffle=False,
+                dl = DataLoader(PatientDataset(feature_file, outcome_file, ablation), batch_size=params.batch_size, shuffle=False,
                                 num_workers=params.num_workers,
                                 pin_memory=params.cuda)
 

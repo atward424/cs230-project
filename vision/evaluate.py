@@ -19,7 +19,7 @@ parser.add_argument('--restore_file', default='best', help="name of the file in 
                      containing weights to load")
 
 
-def evaluate(model, loss_fn, dataloader, metrics, params):
+def evaluate(model, loss_fn, dataloader, metrics, params, mode='val'):
     """Evaluate the model on `num_steps` batches.
 
     Args:
@@ -71,13 +71,18 @@ def evaluate(model, loss_fn, dataloader, metrics, params):
         summ.append(summary_batch)
 
     # compute mean of all metrics in summary
-    metrics_mean = {metric:np.mean([x[metric] for x in summ]) for metric in summ[0]} 
-    metrics_string = " ; ".join("{}: {:05.3f}".format(k, v) for k, v in metrics_mean.items())
+    # metrics_mean = {metric:np.mean([x[metric] for x in summ if x[metric] is not None]) for metric in summ[0]}
+
+    # calculate a single metric over all the outputs
+    metrics_mean = {metric: metrics[metric](outputs, labels)
+                         for metric in metrics}
+    metrics_mean['loss'] = np.mean([x['loss'] for x in summ if x['loss'] is not None])
+    metrics_string = " ; ".join("{}: {:05.5f}".format(k, v) for k, v in metrics_mean.items())
     logging.info("- Eval metrics : " + metrics_string)
 
     
-    pd.DataFrame(outputs).to_csv('val_predictions.csv')
-    pd.DataFrame(labels).to_csv('val_labels.csv')
+    pd.DataFrame(outputs).to_csv('outputs/'+mode+'_predictions.csv')
+    pd.DataFrame(labels).to_csv('outputs/'+mode+'_labels.csv')
     # pd.DataFrame(outputs).to_csv('test_predictions.csv')
     # pd.DataFrame(labels).to_csv('test_labels.csv')
     logging.info((np.sum(outputs), np.sum(np.round(outputs))))
@@ -108,8 +113,8 @@ if __name__ == '__main__':
     logging.info("Creating the dataset...")
 
     # fetch dataloaders
-    dataloaders = data_loader.fetch_dataloader(['test'], args.data_dir, params)
-    test_dl = dataloaders['test']
+    dataloaders = data_loader.fetch_dataloader(['val'], args.data_dir, params)
+    test_dl = dataloaders['val']
 
     logging.info("- done.")
 
@@ -125,6 +130,6 @@ if __name__ == '__main__':
     utils.load_checkpoint(os.path.join(args.model_dir, args.restore_file + '.pth.tar'), model)
 
     # Evaluate
-    test_metrics = evaluate(model, loss_fn, test_dl, metrics, params)
-    save_path = os.path.join(args.model_dir, "metrics_test_{}.json".format(args.restore_file))
+    test_metrics = evaluate(model, loss_fn, test_dl, metrics, params, mode='valf')
+    save_path = os.path.join(args.model_dir, "metrics_valf_{}.json".format(args.restore_file))
     utils.save_dict_to_json(test_metrics, save_path)
